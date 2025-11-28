@@ -16,7 +16,7 @@ KILIT_DOSYASI = "aktif_oturumlar.json"
 
 def numarayi_temizle(numara):
     """
-    Telefon numaralarındaki boşluk, +, - gibi işaretleri temizler.
+    Telefon numaralarındaki harf, boşluk, +, - gibi işaretleri temizler.
     Sadece rakamları bırakır.
     """
     if pd.isna(numara):
@@ -27,50 +27,46 @@ def numarayi_temizle(numara):
 
 def dosya_yukle():
     """
-    CSV dosyasını okur ve sütun ismini OTOMATİK bularak listeyi döndürür.
+    CSV dosyasını okur. Ayırıcıyı (virgül, noktalı virgül vb.) OTOMATİK algılar.
     """
     df = None
-    # Farklı kodlama formatlarını dene (UTF-8, UTF-16 vb.)
-    denemeler = [
-        {'encoding': 'utf-8', 'sep': ','},
-        {'encoding': 'utf-16', 'sep': '\t'}, 
-        {'encoding': 'utf-16', 'sep': ','},
-        {'encoding': 'latin-1', 'sep': ','},
-        {'encoding': 'cp1254', 'sep': ','}
-    ]
-
-    for ayar in denemeler:
+    
+    # Python motoru 'sep=None' ile ayırıcıyı kendi tahmin eder
+    try:
+        df = pd.read_csv(VERI_DOSYASI, sep=None, engine='python', encoding='utf-8')
+    except:
         try:
-            df = pd.read_csv(VERI_DOSYASI, encoding=ayar['encoding'], sep=ayar['sep'])
-            if len(df.columns) > 0: # Dosya boş değilse çık
-                break 
-        except:
-            continue
+            # UTF-8 olmazsa UTF-16 (WhatsApp standardı) dene
+            df = pd.read_csv(VERI_DOSYASI, sep=None, engine='python', encoding='utf-16')
+        except Exception as e:
+            st.error(f"Dosya okuma hatası: {e}. Lütfen dosyanın GitHub'da yüklü olduğundan emin olun.")
+            return []
 
-    if df is None:
-        st.error(f"Dosya okunamadı! Lütfen klasörde '{VERI_DOSYASI}' olduğundan emin olun.")
+    if df is None or len(df) == 0:
         return []
 
     try:
-        # --- OTOMATİK SÜTUN BULMA (HATAYI ÇÖZEN KISIM) ---
+        # --- OTOMATİK SÜTUN BULMA ---
         hedef_sutun = None
         
-        # Sütun isimlerini küçük harfe çevirip içinde 'phone', 'tel', 'mobil' arıyoruz
+        # Sütun isimlerini küçük harfe çevirip içinde anahtar kelime arıyoruz
         for col in df.columns:
             col_lower = str(col).lower()
-            if "phone" in col_lower or "telefon" in col_lower or "mobil" in col_lower or "value" in col_lower:
+            if "phone" in col_lower or "telefon" in col_lower or "mobil" in col_lower or "value" in col_lower or "numara" in col_lower:
                 hedef_sutun = col
                 break
         
-        # Eğer isimden bulamazsa, ilk sütunu varsayalım
+        # Eğer isimden bulamazsa, içinde en çok rakam barındıran sütunu seçelim
         if hedef_sutun is None:
-            hedef_sutun = df.columns[0]
+             # İlk 5 satıra bakıp en uzun sayısal değer içeren sütunu tahmin etmeye çalış
+             hedef_sutun = df.columns[0] 
 
         # Numaraları temizleyip listeye çevir
-        temiz_liste = df[hedef_sutun].apply(numarayi_temizle).tolist()
+        # Sütunu string'e çevirip temizliyoruz
+        temiz_liste = df[hedef_sutun].astype(str).apply(numarayi_temizle).tolist()
         
-        # Boş ve kısa olanları çıkar (En az 5 haneli olmalı)
-        return [no for no in temiz_liste if len(no) > 5]
+        # Boş ve kısa olanları çıkar (En az 7 haneli olmalı)
+        return [no for no in temiz_liste if len(no) > 7]
         
     except Exception as e:
         st.error(f"Veri işleme hatası: {e}")
