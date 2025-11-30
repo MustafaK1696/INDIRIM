@@ -104,7 +104,8 @@ def kilit_kontrol(kullanici_no):
 
 # --- ARAYÜZ ---
 
-st.set_page_config(page_title="Psikoloji İndirim", page_icon="☕", layout="centered")
+# Sayfa başlığını da güncelledik
+st.set_page_config(page_title="Psikoloji Kulübü", page_icon="☕", layout="centered")
 
 st.markdown("""
 <style>
@@ -113,90 +114,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align: center;'>☕ Psikoloji Bölümü İndirim Sistemi</h2>", unsafe_allow_html=True)
+# İSTENİLEN DEĞİŞİKLİK 1: Başlık Güncellendi
+st.markdown("<h2 style='text-align: center;'>☕ Psikoloji Kulübü İndirim Sistemi</h2>", unsafe_allow_html=True)
 
 if 'giris_basarili' not in st.session_state:
     st.session_state['giris_basarili'] = False
 
-# --- GİRİŞ EKRANI ---
-if not st.session_state['giris_basarili']:
-    st.info("Lütfen sistemde kayıtlı numaranızı giriniz.")
-    
-    with st.form("giris_formu"):
-        girilen_ham_no = st.text_input("Telefon Numaranız:", max_chars=15)
-        buton = st.form_submit_button("Doğrula ve Kod Al")
-        
-    if buton and girilen_ham_no:
-        girilen_temiz_no = numarayi_temizle(girilen_ham_no)
-        kayitli_numaralar = dosya_yukle()
-        
-        eslesme = False
-        for kayit in kayitli_numaralar:
-            if len(girilen_temiz_no) > 9 and len(kayit) > 9:
-                if girilen_temiz_no[-10:] == kayit[-10:]:
-                    eslesme = True
-                    break
-        
-        if eslesme:
-            if kilit_kontrol(girilen_temiz_no):
-                st.session_state['giris_basarili'] = True
-                st.session_state['giris_yapilan_no'] = girilen_temiz_no
-                st.rerun()
-            else:
-                st.error("⛔ Bu numara şu an başka bir cihazda aktif! Lütfen 5 dakika bekleyin.")
-        else:
-            st.error("❌ Bu numara indirim listesinde bulunamadı.")
-
-# --- KOD EKRANI (SENKRONİZE) ---
-else:
-    kilit_kontrol(st.session_state['giris_yapilan_no'])
-    
-    st.success("✅ Doğrulama Başarılı!")
-    st.write("Bu kodu kasaya gösteriniz. (Kod herkes için aynıdır ve 10 saniyede bir değişir)")
-    
-    kod_kutusu = st.empty()
-    cubuk_kutusu = st.empty()
-    
-    while True:
-        # --- ZAMAN BAZLI KOD ÜRETİMİ (SENKRONİZASYON İÇİN) ---
-        simdi = time.time()
-        # Zamanı 10 saniyelik bloklara bölüyoruz. 
-        # Dünyanın her yerinde bu sayı (time_block) aynı anda değişir.
-        zaman_blogu = int(simdi // KOD_YENILEME_SANIYE)
-        
-        # Bu zaman bloğunu "tohum" (seed) olarak kullanıyoruz.
-        # Tohum aynı olduğu sürece random aynı sayıyı üretir.
-        random.seed(zaman_blogu)
-        ortak_kod = random.randint(1000, 9999)
-        
-        # Geri sayım çubuğu için kalan süreyi hesapla
-        gecen_sure = simdi % KOD_YENILEME_SANIYE
-        kalan_yuzde = 1.0 - (gecen_sure / KOD_YENILEME_SANIYE)
-        
-        # Ekrana Bas
-        kod_kutusu.markdown(
-            f"""
-            <div style="
-                background-color: #2ecc71;
-                color: white;
-                padding: 30px;
-                border-radius: 15px;
-                text-align: center;
-                font-size: 70px;
-                font-weight: bold;
-                font-family: monospace;
-                letter-spacing: 5px;
-                margin: 20px 0;
-                border: 2px solid white;
-                box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
-            ">
-                {ortak_kod}
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-        
-        cubuk_kutusu.progress(kalan_yuzde)
-        
-        # İşlemciyi yormamak için minik bekleme
-        time.sleep(0.1)
+# --- GİRİŞ EKRANI
