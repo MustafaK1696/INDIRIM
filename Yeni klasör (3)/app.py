@@ -9,76 +9,88 @@ from datetime import datetime
 # --- AYARLAR ---
 KILIT_SURESI_DAKIKA = 5        
 KOD_YENILEME_SANIYE = 10       
-VERI_DOSYASI = "whitelist_telefonlar.csv" 
+# Dosya adını değişken olarak tutalım
+DOSYA_ADI = "whitelist_telefonlar.csv"
 KILIT_DOSYASI = "aktif_oturumlar.json"
 
 # --- YARDIMCI FONKSİYONLAR ---
 
+def dosya_yolunu_bul(dosya_ismi):
+    """
+    Python dosyasının (app.py) çalıştığı klasörü bulur ve 
+    veri dosyasının tam yolunu oluşturur.
+    Bu sayede dosya hangi klasörde olursa olsun bulunur.
+    """
+    mevcut_klasor = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(mevcut_klasor, dosya_ismi)
+
 def numarayi_temizle(numara):
-    """
-    Telefon numaralarındaki harf, boşluk, +, - gibi işaretleri temizler.
-    Sadece rakamları bırakır.
-    """
     if pd.isna(numara):
         return ""
-    # Sadece rakamları al
-    temiz = ''.join(filter(str.isdigit, str(numara)))
-    return temiz
+    return ''.join(filter(str.isdigit, str(numara)))
 
 def dosya_yukle():
     """
-    CSV dosyasını okur. Ayırıcıyı (virgül, noktalı virgül vb.) OTOMATİK algılar.
+    CSV dosyasını tam yolunu bularak okur.
     """
-    df = None
+    # Dosyanın tam yolunu alıyoruz (Bu satır hatayı çözer)
+    tam_dosya_yolu = dosya_yolunu_bul(DOSYA_ADI)
     
-    # Python motoru 'sep=None' ile ayırıcıyı kendi tahmin eder
-    try:
-        df = pd.read_csv(VERI_DOSYASI, sep=None, engine='python', encoding='utf-8')
-    except:
-        try:
-            # UTF-8 olmazsa UTF-16 (WhatsApp standardı) dene
-            df = pd.read_csv(VERI_DOSYASI, sep=None, engine='python', encoding='utf-16')
-        except Exception as e:
-            st.error(f"Dosya okuma hatası: {e}. Lütfen dosyanın GitHub'da yüklü olduğundan emin olun.")
-            return []
+    df = None
+    denemeler = [
+        {'encoding': 'utf-8', 'sep': ','},
+        {'encoding': 'utf-16', 'sep': '\t'}, 
+        {'encoding': 'utf-16', 'sep': ','},
+        {'encoding': 'latin-1', 'sep': ','},
+        {'encoding': 'cp1254', 'sep': ','}
+    ]
 
-    if df is None or len(df) == 0:
+    for ayar in denemeler:
+        try:
+            # Artık sadece dosya ismini değil, tam yolu veriyoruz
+            df = pd.read_csv(tam_dosya_yolu, encoding=ayar['encoding'], sep=ayar['sep'])
+            if len(df.columns) > 0:
+                break 
+        except:
+            continue
+
+    if df is None:
+        # Hata mesajında tam yolu gösterelim ki sorun anlaşilsin
+        st.error(f"Dosya okunamadı! Aranan yol: {tam_dosya_yolu}")
         return []
 
     try:
-        # --- OTOMATİK SÜTUN BULMA ---
         hedef_sutun = None
-        
-        # Sütun isimlerini küçük harfe çevirip içinde anahtar kelime arıyoruz
         for col in df.columns:
             col_lower = str(col).lower()
-            if "phone" in col_lower or "telefon" in col_lower or "mobil" in col_lower or "value" in col_lower or "numara" in col_lower:
+            # Buraya csv'deki olası sütun başlıklarını ekledim
+            if any(x in col_lower for x in ['phone', 'telefon', 'mobil', 'value', 'numara', 'contact']):
                 hedef_sutun = col
                 break
         
-        # Eğer isimden bulamazsa, içinde en çok rakam barındıran sütunu seçelim
         if hedef_sutun is None:
-             # İlk 5 satıra bakıp en uzun sayısal değer içeren sütunu tahmin etmeye çalış
-             hedef_sutun = df.columns[0] 
+            hedef_sutun = df.columns[0]
 
-        # Numaraları temizleyip listeye çevir
-        # Sütunu string'e çevirip temizliyoruz
-        temiz_liste = df[hedef_sutun].astype(str).apply(numarayi_temizle).tolist()
-        
-        # Boş ve kısa olanları çıkar (En az 7 haneli olmalı)
-        return [no for no in temiz_liste if len(no) > 7]
+        temiz_liste = df[hedef_sutun].apply(numarayi_temizle).tolist()
+        return [no for no in temiz_liste if len(no) > 5]
         
     except Exception as e:
         st.error(f"Veri işleme hatası: {e}")
         return []
 
+def kilit_kontrol_yolu():
+    """Kilit dosyası için de tam yol kullanalım"""
+    return dosya_yolunu_bul(KILIT_DOSYASI)
+
 def kilit_kontrol(kullanici_no):
-    if not os.path.exists(KILIT_DOSYASI):
-        with open(KILIT_DOSYASI, 'w') as f:
+    kilit_yolu = kilit_kontrol_yolu()
+    
+    if not os.path.exists(kilit_yolu):
+        with open(kilit_yolu, 'w') as f:
             json.dump({}, f)
     
     try:
-        with open(KILIT_DOSYASI, 'r') as f:
+        with open(kilit_yolu, 'r') as f:
             oturumlar = json.load(f)
     except:
         oturumlar = {}
@@ -98,7 +110,7 @@ def kilit_kontrol(kullanici_no):
         guncel_oturumlar[kullanici_no] = simdi + (KILIT_SURESI_DAKIKA * 60)
         durum = True
         
-    with open(KILIT_DOSYASI, 'w') as f:
+    with open(kilit_yolu, 'w') as f:
         json.dump(guncel_oturumlar, f)
         
     return durum
@@ -132,7 +144,6 @@ if not st.session_state['giris_basarili']:
         kayitli_numaralar = dosya_yukle()
         
         eslesme = False
-        # Numara eşleşmesi kontrolü (Son 10 haneyi kontrol eder)
         for kayit in kayitli_numaralar:
             if len(girilen_temiz_no) > 9 and len(kayit) > 9:
                 if girilen_temiz_no[-10:] == kayit[-10:]:
