@@ -104,14 +104,12 @@ def kilit_kontrol(kullanici_no):
 
 # --- ARAYÜZ ---
 
-# Sayfa başlığını Türkçe yaptık
 st.set_page_config(page_title="Psikoloji Kulübü", page_icon="☕", layout="centered")
 
 st.markdown("""
 <style>
     .big-font { font-size:20px !important; }
     .stButton button { width: 100%; height: 60px; font-size: 20px; background-color: #FF4B4B; color: white; }
-    /* Hata mesajı kutularını biraz daha estetik yapalım */
     .stAlert { font-size: 16px; }
 </style>
 """, unsafe_allow_html=True)
@@ -124,12 +122,12 @@ if 'giris_basarili' not in st.session_state:
 
 # --- GİRİŞ EKRANI ---
 if not st.session_state['giris_basarili']:
-    # Bilgi mesajı Türkçe
-    st.info("Lütfen sistemde kayıtlı telefon numaranızı giriniz.")
+    # İSTENİLEN DEĞİŞİKLİK 1: Bilgi mesajı güncellendi
+    st.info("Lütfen sistemde kayıtlı telefon numaranızı başındaki 0 olmadan giriniz.")
     
     with st.form("giris_formu"):
-        # Input etiketi ve Buton Türkçe
-        girilen_ham_no = st.text_input("Telefon Numaranız:", max_chars=15, placeholder="Örn: 5551234567")
+        # İSTENİLEN DEĞİŞİKLİK 2: "Örn:..." placeholder kaldırıldı
+        girilen_ham_no = st.text_input("Telefon Numaranız:", max_chars=15)
         buton = st.form_submit_button("Doğrula ve Kod Al")
         
     if buton and girilen_ham_no:
@@ -149,27 +147,22 @@ if not st.session_state['giris_basarili']:
                 st.session_state['giris_yapilan_no'] = girilen_temiz_no
                 st.rerun()
             else:
-                # Hata Mesajı 1 - Türkçe
                 st.error("⛔ Bu numara şu an başka bir cihazda aktif! Lütfen 5 dakika bekleyin.")
         else:
-            # Hata Mesajı 2 - Türkçe
             st.error("❌ Bu numara indirim listesinde bulunamadı.")
 
 # --- KOD EKRANI (SENKRONİZE) ---
 else:
     kilit_kontrol(st.session_state['giris_yapilan_no'])
     
-    # Başarı Mesajı Türkçe
     st.success("✅ Doğrulama Başarılı!")
     
-    # Yönerge Türkçe
     st.markdown("<h4 style='text-align: center;'>Bu kodu baristaya gösteriniz.</h4>", unsafe_allow_html=True)
     
     kod_kutusu = st.empty()
     cubuk_kutusu = st.empty()
     
     while True:
-        # --- ZAMAN BAZLI KOD ÜRETİMİ ---
         simdi = time.time()
         zaman_blogu = int(simdi // KOD_YENILEME_SANIYE)
         
@@ -179,7 +172,6 @@ else:
         gecen_sure = simdi % KOD_YENILEME_SANIYE
         kalan_yuzde = 1.0 - (gecen_sure / KOD_YENILEME_SANIYE)
         
-        # Ekrana Bas
         kod_kutusu.markdown(
             f"""
             <div style="
