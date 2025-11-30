@@ -9,7 +9,7 @@ from datetime import datetime
 # --- AYARLAR ---
 KILIT_SURESI_DAKIKA = 5        
 KOD_YENILEME_SANIYE = 10       
-VERI_DOSYASI = "Whatsapp-Group-Contacts.csv" 
+VERI_DOSYASI = "whitelist_telefonlar.csv" 
 KILIT_DOSYASI = "aktif_oturumlar.json"
 
 # --- YARDIMCI FONKSİYONLAR ---
