@@ -9,18 +9,13 @@ from datetime import datetime
 # --- AYARLAR ---
 KILIT_SURESI_DAKIKA = 5        
 KOD_YENILEME_SANIYE = 10       
-# Dosya adını değişken olarak tutalım
 DOSYA_ADI = "whitelist_telefonlar.csv"
 KILIT_DOSYASI = "aktif_oturumlar.json"
 
 # --- YARDIMCI FONKSİYONLAR ---
 
 def dosya_yolunu_bul(dosya_ismi):
-    """
-    Python dosyasının (app.py) çalıştığı klasörü bulur ve 
-    veri dosyasının tam yolunu oluşturur.
-    Bu sayede dosya hangi klasörde olursa olsun bulunur.
-    """
+    """Dosyanın tam yolunu bulur (Klasör hatasını çözer)"""
     mevcut_klasor = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(mevcut_klasor, dosya_ismi)
 
@@ -30,13 +25,11 @@ def numarayi_temizle(numara):
     return ''.join(filter(str.isdigit, str(numara)))
 
 def dosya_yukle():
-    """
-    CSV dosyasını tam yolunu bularak okur.
-    """
-    # Dosyanın tam yolunu alıyoruz (Bu satır hatayı çözer)
+    """CSV dosyasını tam yolu bularak okur"""
     tam_dosya_yolu = dosya_yolunu_bul(DOSYA_ADI)
-    
     df = None
+    
+    # Farklı formatları dene
     denemeler = [
         {'encoding': 'utf-8', 'sep': ','},
         {'encoding': 'utf-16', 'sep': '\t'}, 
@@ -47,7 +40,6 @@ def dosya_yukle():
 
     for ayar in denemeler:
         try:
-            # Artık sadece dosya ismini değil, tam yolu veriyoruz
             df = pd.read_csv(tam_dosya_yolu, encoding=ayar['encoding'], sep=ayar['sep'])
             if len(df.columns) > 0:
                 break 
@@ -55,15 +47,14 @@ def dosya_yukle():
             continue
 
     if df is None:
-        # Hata mesajında tam yolu gösterelim ki sorun anlaşilsin
-        st.error(f"Dosya okunamadı! Aranan yol: {tam_dosya_yolu}")
+        st.error(f"Dosya bulunamadı! Aranan yer: {tam_dosya_yolu}")
         return []
 
     try:
+        # Sütun bulma
         hedef_sutun = None
         for col in df.columns:
             col_lower = str(col).lower()
-            # Buraya csv'deki olası sütun başlıklarını ekledim
             if any(x in col_lower for x in ['phone', 'telefon', 'mobil', 'value', 'numara', 'contact']):
                 hedef_sutun = col
                 break
@@ -71,19 +62,15 @@ def dosya_yukle():
         if hedef_sutun is None:
             hedef_sutun = df.columns[0]
 
-        temiz_liste = df[hedef_sutun].apply(numarayi_temizle).tolist()
+        temiz_liste = df[hedef_sutun].astype(str).apply(numarayi_temizle).tolist()
         return [no for no in temiz_liste if len(no) > 5]
         
     except Exception as e:
-        st.error(f"Veri işleme hatası: {e}")
+        st.error(f"Veri hatası: {e}")
         return []
 
-def kilit_kontrol_yolu():
-    """Kilit dosyası için de tam yol kullanalım"""
-    return dosya_yolunu_bul(KILIT_DOSYASI)
-
 def kilit_kontrol(kullanici_no):
-    kilit_yolu = kilit_kontrol_yolu()
+    kilit_yolu = dosya_yolunu_bul(KILIT_DOSYASI)
     
     if not os.path.exists(kilit_yolu):
         with open(kilit_yolu, 'w') as f:
@@ -160,19 +147,33 @@ if not st.session_state['giris_basarili']:
         else:
             st.error("❌ Bu numara indirim listesinde bulunamadı.")
 
-# --- KOD EKRANI ---
+# --- KOD EKRANI (SENKRONİZE) ---
 else:
     kilit_kontrol(st.session_state['giris_yapilan_no'])
     
     st.success("✅ Doğrulama Başarılı!")
-    st.write("Aşağıdaki kodu kasa görevlisine gösteriniz.")
+    st.write("Bu kodu kasaya gösteriniz. (Kod herkes için aynıdır ve 10 saniyede bir değişir)")
     
     kod_kutusu = st.empty()
     cubuk_kutusu = st.empty()
     
     while True:
-        yeni_kod = random.randint(1000, 9999)
+        # --- ZAMAN BAZLI KOD ÜRETİMİ (SENKRONİZASYON İÇİN) ---
+        simdi = time.time()
+        # Zamanı 10 saniyelik bloklara bölüyoruz. 
+        # Dünyanın her yerinde bu sayı (time_block) aynı anda değişir.
+        zaman_blogu = int(simdi // KOD_YENILEME_SANIYE)
         
+        # Bu zaman bloğunu "tohum" (seed) olarak kullanıyoruz.
+        # Tohum aynı olduğu sürece random aynı sayıyı üretir.
+        random.seed(zaman_blogu)
+        ortak_kod = random.randint(1000, 9999)
+        
+        # Geri sayım çubuğu için kalan süreyi hesapla
+        gecen_sure = simdi % KOD_YENILEME_SANIYE
+        kalan_yuzde = 1.0 - (gecen_sure / KOD_YENILEME_SANIYE)
+        
+        # Ekrana Bas
         kod_kutusu.markdown(
             f"""
             <div style="
@@ -189,12 +190,13 @@ else:
                 border: 2px solid white;
                 box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
             ">
-                {yeni_kod}
+                {ortak_kod}
             </div>
             """, 
             unsafe_allow_html=True
         )
         
-        for i in range(100):
-            cubuk_kutusu.progress(100 - i)
-            time.sleep(KOD_YENILEME_SANIYE / 100)
+        cubuk_kutusu.progress(kalan_yuzde)
+        
+        # İşlemciyi yormamak için minik bekleme
+        time.sleep(0.1)
